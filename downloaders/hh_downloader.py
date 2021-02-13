@@ -32,9 +32,9 @@ def get_all_pages(url):
             page_dict = get_response_body(request)
         except HTTPError as err:
             break
-        if len(page_dict['items']) == 0:
+        if len(page_dict['items']) == 0:  # Здесь у Кирилла будет гореть
             break
-        if page_number == 0:
+        if page_number == 0:  # ГОРИ ГОРИ ЯСНО, чтобы не погасло
             page_count = page_dict['pages']
 
         vacancy_dict_list.extend(page_dict['items'])
