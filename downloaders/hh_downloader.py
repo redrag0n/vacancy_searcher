@@ -13,12 +13,42 @@ TIME_STEP = {'minutes': 30}
 TIME_PERIOD = {'days': 1}
 TIME_LOG_PERIOD = {'hours': 1}
 OUTPUT_DIR = '../data'
+WAIT_REQUEST_TIME_LIMIT = 30
 
 
 def get_response_body(request):
-    with urllib.request.urlopen(request) as response:
-        page_dict = json.loads(response.read().decode('utf8'))
-        return page_dict
+    wait_time = 1
+    while True:
+        try:
+            with urllib.request.urlopen(request) as response:
+                page_dict = json.loads(response.read().decode('utf8'))
+                return page_dict
+        except urllib.error.URLError as err:
+            if wait_time >= WAIT_REQUEST_TIME_LIMIT:
+                logging.error(f'Waiting time is {wait_time}')
+                raise err
+            time.sleep(wait_time)
+            wait_time *= 2
+
+
+def get_vacancy(vacancy_id):
+    url = f'{VACANCY_URL}/{vacancy_id}'
+    # print(url)
+    request = urllib.request.Request(url)
+    try:
+        vacancy_dict = get_response_body(request)
+    except HTTPError as err:
+        return None
+    return vacancy_dict
+
+
+def get_vacancies(page_list):
+    vacancy_list = list()
+    for page in page_list:
+        vacancy = get_vacancy(page['id'])
+        if vacancy is not None:
+            vacancy_list.append(vacancy)
+    return vacancy_list
 
 
 def get_all_pages(url):
@@ -81,7 +111,7 @@ def get_vacancies_by_search_phrase(text):
     while current_time_up > end_time:
         while current_time_up > next_log_time:
             period_dict_list = get_page_list_for_time_range(url, current_time_up, current_time_down)
-            vacancy_dict_list.extend(period_dict_list)
+            vacancy_dict_list.extend(get_vacancies(period_dict_list))
             page_count += 1
             current_time_up = current_time_down
             current_time_down -= step_time_delta
