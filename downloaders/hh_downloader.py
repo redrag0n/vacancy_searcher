@@ -44,21 +44,19 @@ def get_vacancy(vacancy_id):
     return vacancy_dict
 
 
-async def get_vacancy_async(vacancy_id):
+async def get_vacancy_async(vacancy_id, session):
     url = f'{VACANCY_URL}/{vacancy_id}'
 
     wait_time = 1
-    timeout = aiohttp.ClientTimeout(total=10)
     while True:
         try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url) as response:
-                    vacancy_dict = await response.json()
-                    if 'errors' in vacancy_dict:
-                        await asyncio.sleep(wait_time)
-                        wait_time *= 2
-                        continue
-                    break
+            async with session.get(url) as response:
+                vacancy_dict = await response.json()
+                if 'errors' in vacancy_dict:
+                    await asyncio.sleep(wait_time)
+                    wait_time *= 2
+                    continue
+                break
         except (aiohttp.client_exceptions.ClientConnectorError,
                 aiohttp.client_exceptions.ServerDisconnectedError,
                 aiohttp.client_exceptions.ClientOSError,
@@ -79,15 +77,19 @@ def get_vacancies(page_list):
     return vacancy_list
 
 
+async def get_vacancies_conc_async_(page_list):
+    async with aiohttp.ClientSession() as session:
+        tasks = [asyncio.ensure_future(
+            get_vacancy_async(page['id'], session)) for page in
+            page_list]
+        return await asyncio.gather(*tasks)
+
+
 def get_vacancies_async(ioloop, page_list):
     time1 = time.time()
     results = list()
-    for i in range(0, len(page_list), MAX_COUNT_VACANCIES_PER_ASYNC_REQUEST):
-        tasks = [asyncio.ensure_future(
-                 get_vacancy_async(page['id'])) for page in
-                 page_list[i: i + MAX_COUNT_VACANCIES_PER_ASYNC_REQUEST]]
-        loc_results = ioloop.run_until_complete(asyncio.gather(*tasks))
-        results.extend(loc_results)
+    loc_results = ioloop.run_until_complete(get_vacancies_conc_async_(page_list))
+    results.extend(loc_results)
     logging.info(f'{len(results)} were processed in {time.time() - time1} sec')
     return results
 
